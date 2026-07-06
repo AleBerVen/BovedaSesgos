@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bóveda de Sesgos — Auditoría Nortia Labs</title>
+<style>
+  :root{
+    --ink:#161A22;
+    --ink-2:#232a38;
+    --paper:#EFE7D2;
+    --paper-2:#E3D9BC;
+    --mustard:#B4903B;
+    --mustard-dark:#8C6D28;
+    --red:#9E3B34;
+    --green:#3E6B4F;
+    --amber:#B4903B;
+    --text-dark:#221D14;
+    --text-muted:#5C5548;
+    --font-display: 'Iowan Old Style','Palatino Linotype',Georgia,'Times New Roman',serif;
+    --font-mono: 'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 20% 10%, #1d2330 0%, transparent 45%),
+      radial-gradient(circle at 85% 90%, #1a2029 0%, transparent 40%),
+      var(--ink);
+    color:var(--paper);
+    font-family:var(--font-display);
+    min-height:100vh;
+    padding:32px 16px 60px;
+  }
+  .wrap{max-width:900px;margin:0 auto;}
+
+  .masthead{
+    display:flex;justify-content:space-between;align-items:flex-end;
+    border-bottom:2px solid var(--mustard);
+    padding-bottom:14px;margin-bottom:18px;flex-wrap:wrap;gap:14px;
+  }
+  .masthead h1{margin:0;font-size:27px;letter-spacing:0.5px;font-weight:600;color:var(--paper);}
+  .masthead .sub{font-family:var(--font-mono);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--mustard);margin-top:4px;}
+  .controls{display:flex;align-items:center;gap:16px;font-family:var(--font-mono);font-size:12px;}
+  .mode-toggle{display:flex;background:var(--ink-2);border:1px solid var(--mustard-dark);border-radius:20px;overflow:hidden;}
+  .mode-toggle button{background:none;border:none;color:var(--paper);font-family:var(--font-mono);font-size:11px;padding:7px 12px;cursor:pointer;letter-spacing:1px;}
+  .mode-toggle button.active{background:var(--mustard);color:var(--ink);font-weight:700;}
+  .timer{font-family:var(--font-mono);font-size:15px;letter-spacing:1px;min-width:58px;text-align:right;}
+
+  /* ---- confianza meter ---- */
+  .meter-block{margin-bottom:22px;}
+  .meter-label{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--paper);margin-bottom:6px;}
+  .meter-label b{color:var(--mustard);font-size:13px;letter-spacing:0;}
+  .meter-bar{width:100%;height:9px;background:#2b3242;border-radius:5px;overflow:hidden;border:1px solid #3a415280;}
+  .meter-fill{height:100%;width:60%;transition:width .6s ease, background .6s ease;background:var(--mustard);}
+
+  .dial{display:flex;justify-content:center;gap:12px;margin:8px 0 26px;flex-wrap:wrap;}
+  .tumbler{width:42px;height:42px;border-radius:50%;border:2px solid #4a4536;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:13px;color:#4a4536;background:transparent;transition:all .35s ease;}
+  .tumbler.active{border-color:var(--mustard);color:var(--mustard);box-shadow:0 0 0 3px rgba(180,144,59,0.15);}
+  .tumbler.solved{border-color:var(--green);background:var(--green);color:var(--paper);}
+  .tumbler-line{width:12px;height:2px;background:#4a4536;align-self:center;}
+
+  .card{background:var(--paper);color:var(--text-dark);border-radius:2px;padding:32px 32px 26px;position:relative;box-shadow:0 20px 50px rgba(0,0,0,0.45);border-top:6px solid var(--mustard);}
+  .tag-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+  .expediente{font-family:var(--font-mono);font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);}
+  .confidencial{font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--red);border:1px solid var(--red);padding:3px 8px;transform:rotate(-3deg);}
+  .card h2{font-size:20px;margin:0 0 14px;color:var(--text-dark);}
+  .card p{font-size:16px;line-height:1.65;margin:0 0 14px;}
+
+  /* intro screen */
+  .intro-text{border-left:3px solid var(--paper-2);padding-left:16px;font-size:16.5px;line-height:1.7;margin-bottom:22px;}
+  .btn{font-family:var(--font-mono);font-size:12.5px;letter-spacing:1px;text-transform:uppercase;background:var(--ink);color:var(--paper);border:none;padding:12px 20px;border-radius:4px;cursor:pointer;}
+  .btn:hover{background:#2b3242;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-ghost{background:none;border:1.5px solid var(--text-dark);color:var(--text-dark);}
+  .btn-ghost:hover{background:var(--text-dark);color:var(--paper);}
+
+  /* investigacion */
+  .case-text{font-size:16px;line-height:1.65;margin-bottom:20px;}
+  .warning{font-family:var(--font-mono);font-size:12px;color:var(--red);border:1px dashed var(--red);padding:10px 12px;margin-bottom:16px;border-radius:4px;}
+  .evidence-list{display:grid;gap:10px;margin-bottom:20px;}
+  .evidence-card{border:1.5px solid var(--paper-2);border-radius:6px;background:#fff;overflow:hidden;}
+  .evidence-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;cursor:pointer;}
+  .evidence-head .label{font-family:var(--font-mono);font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);}
+  .evidence-head .status{font-family:var(--font-mono);font-size:11px;color:var(--mustard-dark);}
+  .evidence-body{max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0 16px;}
+  .evidence-body.open{max-height:220px;padding:0 16px 14px;}
+  .evidence-body p{font-size:15px;line-height:1.6;margin:0;color:var(--text-dark);}
+  .evidence-card.revisado{border-color:var(--green);}
+  .evidence-card.revisado .status{color:var(--green);}
+  .progress-note{font-family:var(--font-mono);font-size:11.5px;color:var(--text-muted);margin-bottom:14px;}
+
+  /* diagnostico */
+  .question{font-family:var(--font-mono);font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;}
+  .options{display:grid;gap:10px;margin-bottom:6px;}
+  .opt{text-align:left;background:#fff;border:1.5px solid var(--paper-2);border-radius:6px;padding:13px 16px;font-family:var(--font-display);font-size:15px;color:var(--text-dark);cursor:pointer;transition:all .15s ease;}
+  .opt:hover:not(:disabled){border-color:var(--mustard);background:#FFFDF7;}
+  .opt:disabled{cursor:default;}
+  .opt.correct{border-color:var(--green);background:#e9f2ec;}
+  .opt.incorrect{border-color:var(--red);background:#f6e9e8;}
+
+  .feedback{margin-top:18px;padding-top:16px;border-top:1px dashed var(--paper-2);display:none;}
+  .feedback.show{display:block;animation:fadeUp .35s ease;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+  .stamp{display:inline-block;font-family:var(--font-mono);font-weight:700;font-size:14px;letter-spacing:1.5px;padding:6px 14px;border:3px solid;border-radius:4px;transform:rotate(-4deg);margin-bottom:12px;animation:stampIn .28s ease;}
+  @keyframes stampIn{from{transform:rotate(-4deg) scale(1.6);opacity:0;}to{transform:rotate(-4deg) scale(1);opacity:1;}}
+  .stamp.ok{color:var(--green);border-color:var(--green);}
+  .stamp.no{color:var(--red);border-color:var(--red);}
+
+  /* acciones */
+  .action-list{display:grid;gap:12px;margin:16px 0 6px;}
+  .action-card{border:1.5px solid var(--paper-2);border-radius:6px;background:#fff;padding:14px 16px;cursor:pointer;transition:all .15s ease;}
+  .action-card:hover{border-color:var(--mustard);}
+  .action-card p{font-size:15px;margin:0;line-height:1.55;}
+  .action-card.chosen-optima{border-color:var(--green);background:#e9f2ec;}
+  .action-card.chosen-parcial{border-color:var(--amber);background:#f6efe0;}
+  .action-card.chosen-deficiente{border-color:var(--red);background:#f6e9e8;}
+
+  .consequence{margin-top:18px;padding-top:16px;border-top:1px dashed var(--paper-2);}
+  .badge{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:3px;display:inline-block;margin-bottom:10px;}
+  .badge.optima{background:var(--green);color:#fff;}
+  .badge.parcial{background:var(--amber);color:#1c1608;}
+  .badge.deficiente{background:var(--red);color:#fff;}
+  .delta{font-family:var(--font-mono);font-size:13px;color:var(--text-muted);margin-bottom:14px;}
+
+  /* final */
+  .final h2{font-size:24px;margin-bottom:4px;}
+  .final .rank{font-family:var(--font-mono);font-size:15px;letter-spacing:2px;text-transform:uppercase;color:var(--mustard-dark);margin-bottom:18px;}
+  .recap{margin-top:18px;display:grid;gap:10px;}
+  .recap-item{border-left:3px solid var(--paper-2);padding:10px 14px;background:#fff;border-radius:4px;}
+  .recap-item.optima{border-left-color:var(--green);}
+  .recap-item.parcial{border-left-color:var(--amber);}
+  .recap-item.deficiente{border-left-color:var(--red);}
+  .recap-item b{display:block;font-size:14px;margin-bottom:2px;}
+  .recap-item span{font-size:13px;color:var(--text-muted);display:block;}
+
+  .footer-note{text-align:center;font-family:var(--font-mono);font-size:11px;color:#5c5548;margin-top:22px;letter-spacing:0.5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div>
+      <h1>Bóveda de Sesgos</h1>
+      <div class="sub">Auditoría interna · Nortia Labs</div>
+    </div>
+    <div class="controls">
+      <div class="mode-toggle">
+        <button id="modeIndiv" class="active">Individual</button>
+        <button id="modeEquipo">Equipo</button>
+      </div>
+      <div class="timer" id="timer">00:00</div>
+    </div>
+  </div>
+
+  <div class="meter-block">
+    <div class="meter-label"><span>Confianza organizacional en la auditoría</span><b id="meterVal">60%</b></div>
+    <div class="meter-bar"><div class="meter-fill" id="meterFill"></div></div>
+  </div>
+
+  <div class="dial" id="dial"></div>
+  <div id="stage"></div>
+  <div class="footer-note">Tus decisiones en cada departamento determinan cuánta información te comparte el siguiente. Investiga antes de diagnosticar.</div>
+
+</div>
+
+<script>
+const BIASES = {
+  confirmacion:  {name:'Sesgo de confirmación',  def:'Buscar, interpretar o recordar información de forma que confirme una creencia previa, mientras se ignora la evidencia que la contradice.'},
+  disponibilidad:{name:'Sesgo de disponibilidad',def:'Juzgar la frecuencia o gravedad de algo según qué tan fácil es recordar ejemplos, en lugar de basarse en los datos reales.'},
+  anclaje:       {name:'Efecto anclaje',         def:'Dar un peso desproporcionado a la primera cifra o dato presentado, usándolo como referencia para todos los juicios posteriores.'},
+  dunning:       {name:'Efecto Dunning-Kruger',  def:'Sobrestimar la propia competencia en un tema cuando el conocimiento real sobre él todavía es limitado.'},
+  algoritmico:   {name:'Sesgo algorítmico',      def:'Un sistema automatizado reproduce o amplifica patrones de discriminación presentes en los datos con los que fue entrenado, sin que nadie lo haya definido explícitamente.'}
+};
+
+const ROOMS = [
+  {
+    id:1, dept:'Ciberseguridad', correct:'confirmacion',
+    intro:{
+      default:'Nortia Labs te acaba de nombrar auditor(a) interno(a) tras una serie de decisiones cuestionables en distintas áreas. Tu primer expediente es un incidente de seguridad que el equipo de Ciberseguridad dio por resuelto hace tres días.'
+    },
+    case:'El equipo de respuesta a incidentes concluyó que el responsable fue un empleado interno, señalado desde el primer minuto por sospechas previas. El caso está prácticamente cerrado. Antes de firmar tu visto bueno, decides revisar el expediente completo.',
+    evidence:{
+      alta:[
+        {label:'Registro de firewall', text:'Los registros muestran una conexión no autorizada desde una IP externa la misma noche del incidente, coincidiendo con una vulnerabilidad conocida en la VPN.'},
+        {label:'Ticket de soporte técnico', text:'Un ticket de esa semana reporta una falla de configuración en la VPN, corregida apenas dos días después del incidente.'},
+        {label:'Registro de acceso del empleado', text:'El empleado sospechoso tuvo actividad fuera de horario esa noche, aunque coincide con un periodo de entregas que él mismo había reportado con antelación.'}
+      ],
+      media:[
+        {label:'Registro de firewall', text:'Los registros muestran una conexión no autorizada desde una IP externa la misma noche del incidente, coincidiendo con una vulnerabilidad conocida en la VPN.'},
+        {label:'Registro de acceso del empleado', text:'El empleado sospechoso tuvo actividad fuera de horario esa noche, aunque coincide con un periodo de entregas que él mismo había reportado con antelación.'}
+      ],
+      baja:[
+        {label:'Registro de acceso del empleado', text:'El empleado sospechoso tuvo actividad fuera de horario esa noche, aunque coincide con un periodo de entregas que él mismo había reportado con antelación.'}
+      ]
+    },
+    options:['confirmacion','disponibilidad','anclaje','algoritmico'],
+    feedbackOk:'Correcto. El equipo dirigió su búsqueda hacia lo que confirmaba su sospecha inicial y restó valor a la evidencia técnica que apuntaba a un acceso externo.',
+    actions:[
+      {tier:'optima', label:'Ampliar la investigación a los registros de VPN y red externa antes de concluir, documentando por qué se descarta al empleado interno.', delta:10, consequence:'El equipo de TI valora la exhaustividad de tu trabajo y comparte acceso completo a sus sistemas de aquí en adelante.'},
+      {tier:'parcial', label:'Mantener la conclusión sobre el empleado interno, pero añadir una nota de precaución para revisión futura.', delta:0, consequence:'El caso se cierra sin cuestionar la conclusión original. TI queda con dudas sobre el rigor real de tu auditoría.'},
+      {tier:'deficiente', label:'Avalar la sanción inmediata al empleado, sin revisar más a fondo la evidencia externa, para cerrar el caso cuanto antes.', delta:-15, consequence:'Un empleado inocente es sancionado injustamente. La confianza en tu auditoría empieza a resquebrajarse.'}
+    ]
+  },
+  {
+    id:2, dept:'Salud Ocupacional', correct:'disponibilidad',
+    intro:{
+      optima:'Tu manejo del caso de Ciberseguridad se comentó en el comité directivo por su exhaustividad. El área de Salud Ocupacional te recibe con toda su documentación disponible, sin restricciones.',
+      parcial:'La resolución del caso de Ciberseguridad generó dudas menores sobre la rapidez con la que se cerró. El área de Salud Ocupacional coopera, aunque pide que tu revisión sea más cuidadosa esta vez.',
+      deficiente:'La sanción injusta en Ciberseguridad ya circula como comentario interno. El área de Salud Ocupacional te recibe con cautela y solo comparte la documentación mínima indispensable.'
+    },
+    case:'La dirección de la clínica interna de Nortia Labs aprobó destinar la mayor parte del presupuesto anual a equipo especializado para detectar una enfermedad poco común. La decisión se tomó poco después de que un caso individual apareciera en las noticias.',
+    evidence:{
+      alta:[
+        {label:'Base epidemiológica interna', text:'Los registros de la clínica muestran que esa enfermedad representa menos del 2% de los casos atendidos en los últimos cinco años.'},
+        {label:'Historial de presupuesto', text:'Cada aumento de presupuesto en los últimos tres años coincidió con la cobertura mediática de un caso individual, no con cambios reales en las cifras.'},
+        {label:'Nota periodística', text:'La nota que vio el director describe con gran detalle el caso de un paciente que estuvo a punto de no ser diagnosticado a tiempo.'}
+      ],
+      media:[
+        {label:'Base epidemiológica interna', text:'Los registros de la clínica muestran que esa enfermedad representa menos del 2% de los casos atendidos en los últimos cinco años.'},
+        {label:'Nota periodística', text:'La nota que vio el director describe con gran detalle el caso de un paciente que estuvo a punto de no ser diagnosticado a tiempo.'}
+      ],
+      baja:[
+        {label:'Nota periodística', text:'La nota que vio el director describe con gran detalle el caso de un paciente que estuvo a punto de no ser diagnosticado a tiempo.'}
+      ]
+    },
+    options:['disponibilidad','dunning','algoritmico','confirmacion'],
+    feedbackOk:'Correcto. La decisión se basó en un caso vívido y fácil de recordar, no en la frecuencia real que muestran los propios datos de la clínica.',
+    actions:[
+      {tier:'optima', label:'Presentar los datos epidemiológicos reales al director y proponer un comité de revisión de presupuesto basado en evidencia.', delta:10, consequence:'El director agradece la claridad de los datos y ajusta el presupuesto. La dirección general nota tu criterio técnico.'},
+      {tier:'parcial', label:'Sugerir revisar el presupuesto "en algún momento futuro", sin presentar los datos de forma directa al director.', delta:0, consequence:'El tema queda pendiente indefinidamente. Nadie objeta, pero nadie corrige tampoco.'},
+      {tier:'deficiente', label:'Aprobar el presupuesto tal como está para evitar confrontar al director.', delta:-15, consequence:'El desbalance presupuestal continúa. Otro comité detecta el problema meses después y cuestiona por qué tu auditoría no lo señaló.'}
+    ]
+  },
+  {
+    id:3, dept:'Finanzas', correct:'anclaje',
+    intro:{
+      optima:'Tu manejo del presupuesto de Salud Ocupacional fue reconocido por el comité directivo. El área de Finanzas te invita a su reunión de negociación con acceso completo a sus análisis previos.',
+      parcial:'El tema de Salud Ocupacional quedó pendiente sin mayor conflicto. Finanzas te recibe de forma neutral, compartiendo únicamente la información estándar.',
+      deficiente:'La aprobación del presupuesto sin cuestionamientos generó inquietud en el comité directivo. El área de Finanzas, alertada, te comparte solo lo estrictamente solicitado.'
+    },
+    case:'En una reunión de negociación de presupuesto para el próximo trimestre, la primera cifra mencionada fue $500,000, propuesta por un área sin mayor justificación técnica. La discusión avanza rápidamente alrededor de ese número.',
+    evidence:{
+      alta:[
+        {label:'Análisis de costo-beneficio', text:'El análisis elaborado por Finanzas antes de la reunión sugiere un monto adecuado de $180,000, muy distinto de los $500,000 iniciales.'},
+        {label:'Minutas de negociaciones previas', text:'En las últimas cuatro negociaciones similares, el monto final siempre quedó dentro de un 10% de la primera cifra mencionada, sin importar el análisis presentado después.'},
+        {label:'Perfil del proponente', text:'La persona que propuso los $500,000 iniciales tiene más antigüedad que el resto del comité.'}
+      ],
+      media:[
+        {label:'Análisis de costo-beneficio', text:'El análisis elaborado por Finanzas antes de la reunión sugiere un monto adecuado de $180,000, muy distinto de los $500,000 iniciales.'},
+        {label:'Perfil del proponente', text:'La persona que propuso los $500,000 iniciales tiene más antigüedad que el resto del comité.'}
+      ],
+      baja:[
+        {label:'Perfil del proponente', text:'La persona que propuso los $500,000 iniciales tiene más antigüedad que el resto del comité.'}
+      ]
+    },
+    options:['anclaje','confirmacion','dunning','algoritmico'],
+    feedbackOk:'Correcto. La cifra inicial funcionó como ancla para todos los juicios posteriores, incluso cuando el análisis de costo-beneficio justificaba alejarse de ella.',
+    actions:[
+      {tier:'optima', label:'Proponer que la discusión inicie a partir del análisis de costo-beneficio, antes de considerar cualquier cifra previa.', delta:10, consequence:'El comité ajusta el monto al análisis real. Finanzas empieza a citar tu auditoría como referencia de buenas prácticas.'},
+      {tier:'parcial', label:'Aceptar seguir discutiendo cerca de la cifra original, pero pedir que se "considere" el análisis.', delta:0, consequence:'El monto final se ajusta ligeramente, sin corregir el problema de fondo. El ancla sigue dominando la conversación.'},
+      {tier:'deficiente', label:'Avalar el monto cercano a la cifra inicial para no generar conflicto en la reunión.', delta:-15, consequence:'El presupuesto queda mal calculado. Un área distinta se queda sin recursos suficientes por el resto del año.'}
+    ]
+  },
+  {
+    id:4, dept:'Innovación', correct:'dunning',
+    intro:{
+      optima:'Tu manejo de la negociación de Finanzas fue citado como ejemplo de auditoría rigurosa. El equipo de Innovación te recibe con toda la documentación técnica de su proyecto de IA.',
+      parcial:'La negociación de Finanzas se resolvió sin grandes cambios. El equipo de Innovación coopera con normalidad, sin objeciones particulares.',
+      deficiente:'El aval al monto original en Finanzas generó cuestionamientos sobre el rigor de tu auditoría. El equipo de Innovación, a la defensiva, limita el acceso a sus reportes técnicos.'
+    },
+    case:'Tras tomar un curso introductorio de cuatro semanas sobre modelos de inteligencia artificial, un integrante del equipo se ofreció como voluntario para liderar en solitario la auditoría técnica de un algoritmo complejo del proyecto interno de IA.',
+    evidence:{
+      alta:[
+        {label:'Revisión de especialista senior', text:'Un especialista senior que revisó el trabajo encontró errores metodológicos básicos en la auditoría técnica entregada.'},
+        {label:'Certificado del curso', text:'El certificado corresponde a un nivel introductorio de cuatro semanas, sin componente práctico evaluado.'},
+        {label:'Bitácora del proyecto', text:'La persona se ofreció como voluntaria con mucho entusiasmo y ha trabajado horas extra en el proyecto.'}
+      ],
+      media:[
+        {label:'Revisión de especialista senior', text:'Un especialista senior que revisó el trabajo encontró errores metodológicos básicos en la auditoría técnica entregada.'},
+        {label:'Bitácora del proyecto', text:'La persona se ofreció como voluntaria con mucho entusiasmo y ha trabajado horas extra en el proyecto.'}
+      ],
+      baja:[
+        {label:'Bitácora del proyecto', text:'La persona se ofreció como voluntaria con mucho entusiasmo y ha trabajado horas extra en el proyecto.'}
+      ]
+    },
+    options:['dunning','algoritmico','confirmacion','disponibilidad'],
+    feedbackOk:'Correcto. Un conocimiento inicial y limitado llevó a sobrestimar la propia competencia frente a una tarea que requería experiencia especializada.',
+    actions:[
+      {tier:'optima', label:'Formar un equipo mixto donde la persona colabore junto con especialistas senior en la auditoría técnica.', delta:10, consequence:'El proyecto mejora notablemente y la persona aprende de la colaboración. Innovación destaca tu intervención como constructiva.'},
+      {tier:'parcial', label:'Dejar que la persona continúe sola, pero pedirle un reporte de avance semanal.', delta:0, consequence:'Los errores metodológicos persisten, aunque ahora quedan documentados. El riesgo técnico sigue presente.'},
+      {tier:'deficiente', label:'Confiar plenamente en la autoevaluación de la persona, sin ninguna supervisión adicional.', delta:-15, consequence:'El algoritmo se implementa con fallas no detectadas. El equipo de Innovación pierde semanas corrigiendo el problema después.'}
+    ]
+  },
+  {
+    id:5, dept:'Talento', correct:'algoritmico',
+    intro:{
+      optima:'La revisión del proyecto de IA terminó en una colaboración ejemplar entre la persona voluntaria y especialistas senior. El área de Talento te recibe con total transparencia sobre su sistema de reclutamiento.',
+      parcial:'El proyecto de IA sigue bajo supervisión parcial, sin cambios estructurales. El área de Talento comparte la información básica sobre su sistema de reclutamiento.',
+      deficiente:'La falta de supervisión en el proyecto de IA generó una alerta interna sobre auditorías poco rigurosas. El área de Talento, precavida, solo permite acceso limitado a los datos de su sistema.'
+    },
+    case:'El sistema de recomendación para procesos de contratación de Nortia Labs, entrenado con datos históricos de la empresa, ha estado filtrando de forma sistemática a candidatos de ciertas universidades y perfiles demográficos.',
+    evidence:{
+      alta:[
+        {label:'Desglose estadístico de contrataciones', text:'Los datos de los últimos dos años muestran una subrepresentación sistemática de candidatos de ciertas universidades y perfiles demográficos.'},
+        {label:'Documentación técnica del sistema', text:'Nadie definió explícitamente ese criterio de exclusión: el sistema fue entrenado únicamente con diez años de decisiones históricas de contratación, sin ajuste alguno.'},
+        {label:'Reporte de eficiencia de Talento', text:'El equipo de Talento reporta que el sistema ha "funcionado bien" porque redujo el tiempo de contratación en un 40%.'}
+      ],
+      media:[
+        {label:'Desglose estadístico de contrataciones', text:'Los datos de los últimos dos años muestran una subrepresentación sistemática de candidatos de ciertas universidades y perfiles demográficos.'},
+        {label:'Reporte de eficiencia de Talento', text:'El equipo de Talento reporta que el sistema ha "funcionado bien" porque redujo el tiempo de contratación en un 40%.'}
+      ],
+      baja:[
+        {label:'Reporte de eficiencia de Talento', text:'El equipo de Talento reporta que el sistema ha "funcionado bien" porque redujo el tiempo de contratación en un 40%.'}
+      ]
+    },
+    options:['algoritmico','confirmacion','anclaje','dunning'],
+    feedbackOk:'Correcto. El sistema no decidió filtrar por esos criterios de forma explícita: los aprendió y los reprodujo a partir de patrones presentes en los datos históricos de entrenamiento.',
+    actions:[
+      {tier:'optima', label:'Auditar y reentrenar el sistema con datos corregidos, y establecer revisión humana obligatoria de las decisiones automatizadas.', delta:10, consequence:'El sistema se corrige y Nortia Labs adopta un protocolo de auditoría algorítmica permanente basado en tu recomendación.'},
+      {tier:'parcial', label:'Desactivar temporalmente el sistema, sin investigar la causa raíz ni definir cómo prevenirlo a futuro.', delta:0, consequence:'El problema queda contenido, pero sin resolver de fondo. Es probable que reaparezca cuando el sistema vuelva a activarse.'},
+      {tier:'deficiente', label:'Mantener el sistema activo, argumentando que "la IA es neutral y no tiene intenciones".', delta:-15, consequence:'El patrón de exclusión continúa. Meses después, la empresa enfrenta un señalamiento público por discriminación en sus procesos de contratación.'}
+    ]
+  }
+];
+
+let current = 0;
+let confianza = 60;
+let phase = 'intro'; // intro | investigacion | diagnostico | accion | consecuencia
+let history = [];
+let reviewedSet = new Set();
+let wrongAttempts = 0;
+let startTime = Date.now();
+let timerHandle = null;
+
+function fmtTime(s){const m=Math.floor(s/60).toString().padStart(2,'0');const sec=(s%60).toString().padStart(2,'0');return m+':'+sec;}
+function startTimer(){clearInterval(timerHandle);timerHandle=setInterval(()=>{document.getElementById('timer').textContent=fmtTime(Math.floor((Date.now()-startTime)/1000));},1000);}
+
+document.getElementById('modeIndiv').onclick=()=>{document.getElementById('modeIndiv').classList.add('active');document.getElementById('modeEquipo').classList.remove('active');};
+document.getElementById('modeEquipo').onclick=()=>{document.getElementById('modeEquipo').classList.add('active');document.getElementById('modeIndiv').classList.remove('active');};
+
+function tierFromConfianza(c){
+  if(c>=70) return 'alta';
+  if(c>=40) return 'media';
+  return 'baja';
+}
+function tierLabel(t){return t==='optima'?'Óptima':(t==='parcial'?'Parcial':'Deficiente');}
+
+function updateMeter(){
+  confianza = Math.max(0, Math.min(100, confianza));
+  const fill = document.getElementById('meterFill');
+  fill.style.width = confianza+'%';
+  fill.style.background = confianza>=70 ? 'var(--green)' : (confianza>=40 ? 'var(--mustard)' : 'var(--red)');
+  document.getElementById('meterVal').textContent = confianza+'%';
+}
+
+function renderDial(){
+  const dial=document.getElementById('dial');
+  dial.innerHTML='';
+  ROOMS.forEach((r,i)=>{
+    const t=document.createElement('div');
+    t.className='tumbler'+(history[i] ? ' solved' : (i===current?' active':''));
+    t.textContent = history[i] ? '✓' : (i+1);
+    dial.appendChild(t);
+    if(i<ROOMS.length-1){const l=document.createElement('div');l.className='tumbler-line';dial.appendChild(l);}
+  });
+}
+
+function shuffle(arr){return arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(v=>v[1]);}
+
+function renderIntro(){
+  const room = ROOMS[current];
+  let text;
+  if(current===0){
+    text = room.intro.default;
+  } else {
+    const prevTier = history[current-1].actionTier;
+    text = room.intro[prevTier];
+  }
+  document.getElementById('stage').innerHTML = `
+    <div class="card">
+      <div class="tag-row">
+        <div class="expediente">Departamento: ${room.dept}</div>
+        <div class="confidencial">Confidencial</div>
+      </div>
+      <h2>Expediente 0${room.id} de 0${ROOMS.length}</h2>
+      <div class="intro-text">${text}</div>
+      <button class="btn" id="startBtn">Iniciar auditoría de este departamento →</button>
+    </div>
+  `;
+  document.getElementById('startBtn').onclick = ()=>{ phase='investigacion'; reviewedSet=new Set(); renderInvestigacion(); };
+  renderDial();
+}
+
+function renderInvestigacion(){
+  const room = ROOMS[current];
+  const tier = tierFromConfianza(confianza);
+  const evid = room.evidence[tier];
+  document.getElementById('stage').innerHTML = `
+    <div class="card">
+      <div class="tag-row">
+        <div class="expediente">Expediente 0${room.id} — Investigación</div>
+        <div class="confidencial">Confidencial</div>
+      </div>
+      <div class="case-text">${room.case}</div>
+      ${tier!=='alta' ? `<div class="warning">${tier==='media' ? 'Acceso parcial: este departamento no compartió todo su material.' : 'Acceso muy limitado: solo tienes una pieza de evidencia disponible. Procede con cautela.'}</div>` : ''}
+      <div class="progress-note" id="progressNote">Evidencia revisada: 0 / ${evid.length}</div>
+      <div class="evidence-list" id="evList"></div>
+      <button class="btn" id="proceedBtn" disabled>Proceder al diagnóstico →</button>
+    </div>
+  `;
+  const list = document.getElementById('evList');
+  evid.forEach((e,i)=>{
+    const card = document.createElement('div');
+    card.className='evidence-card';
+    card.innerHTML = `
+      <div class="evidence-head">
+        <span class="label">${e.label}</span>
+        <span class="status">Ver evidencia</span>
+      </div>
+      <div class="evidence-body"><p>${e.text}</p></div>
+    `;
+    card.querySelector('.evidence-head').onclick = ()=>{
+      const body = card.querySelector('.evidence-body');
+      const status = card.querySelector('.status');
+      body.classList.toggle('open');
+      if(!reviewedSet.has(i)){
+        reviewedSet.add(i);
+        card.classList.add('revisado');
+        status.textContent='Revisado ✓';
+        document.getElementById('progressNote').textContent = `Evidencia revisada: ${reviewedSet.size} / ${evid.length}`;
+        if(reviewedSet.size === evid.length){
+          document.getElementById('proceedBtn').disabled = false;
+        }
+      }
+    };
+    list.appendChild(card);
+  });
+  document.getElementById('proceedBtn').onclick = ()=>{ phase='diagnostico'; renderDiagnostico(); };
+  renderDial();
+}
+
+function renderDiagnostico(){
+  const room = ROOMS[current];
+  const opts = shuffle(room.options);
+  document.getElementById('stage').innerHTML = `
+    <div class="card">
+      <div class="tag-row">
+        <div class="expediente">Expediente 0${room.id} — Diagnóstico</div>
+        <div class="confidencial">Confidencial</div>
+      </div>
+      <h2>¿Qué sesgo cognitivo está operando en este caso?</h2>
+      <div class="question">Selecciona el sesgo correcto</div>
+      <div class="options" id="opts"></div>
+      <div class="feedback" id="feedback"></div>
+    </div>
+  `;
+  const optsEl = document.getElementById('opts');
+  opts.forEach(key=>{
+    const btn=document.createElement('button');
+    btn.className='opt';
+    btn.textContent=BIASES[key].name;
+    btn.onclick=()=>answerDiagnostico(key, btn, room);
+    optsEl.appendChild(btn);
+  });
+  renderDial();
+}
+
+function answerDiagnostico(key, btnEl, room){
+  document.querySelectorAll('#opts .opt').forEach(b=>b.disabled=true);
+  const feedback = document.getElementById('feedback');
+  if(key===room.correct){
+    btnEl.classList.add('correct');
+    feedback.innerHTML = `
+      <div class="stamp ok">SESGO IDENTIFICADO ✓</div>
+      <p>${room.feedbackOk}</p>
+      <button class="btn" id="nextBtn">Decidir acción correctiva →</button>
+    `;
+    feedback.classList.add('show');
+    document.getElementById('nextBtn').onclick = ()=>{ phase='accion'; renderAccion(); };
+  } else {
+    confianza -= 5; updateMeter();
+    btnEl.classList.add('incorrect');
+    feedback.innerHTML = `
+      <div class="stamp no">ERROR DE AUDITORÍA ✗</div>
+      <p>Ese no es el sesgo que mejor explica este caso (−5 de confianza organizacional). Revisa la evidencia una vez más antes de reintentar.</p>
+      <button class="btn btn-ghost" id="retryBtn">Reintentar diagnóstico</button>
+    `;
+    feedback.classList.add('show');
+    document.getElementById('retryBtn').onclick = ()=> renderDiagnostico();
+  }
+}
+
+function renderAccion(){
+  const room = ROOMS[current];
+  document.getElementById('stage').innerHTML = `
+    <div class="card">
+      <div class="tag-row">
+        <div class="expediente">Expediente 0${room.id} — Acción correctiva</div>
+        <div class="confidencial">Confidencial</div>
+      </div>
+      <h2>¿Qué acción recomienda tu auditoría?</h2>
+      <p>El sesgo ya está identificado. Ahora decide cómo actuar: esta decisión impactará la confianza que el resto de Nortia Labs tiene en tu trabajo.</p>
+      <div class="action-list" id="actList"></div>
+      <div class="consequence" id="consequence" style="display:none;"></div>
+    </div>
+  `;
+  const list = document.getElementById('actList');
+  shuffle(room.actions).forEach(a=>{
+    const card=document.createElement('div');
+    card.className='action-card';
+    card.innerHTML=`<p>${a.label}</p>`;
+    card.onclick=()=>chooseAccion(a, room);
+    list.appendChild(card);
+  });
+  renderDial();
+}
+
+function chooseAccion(a, room){
+  document.querySelectorAll('.action-card').forEach(c=>{c.style.pointerEvents='none';});
+  event.currentTarget.classList.add('chosen-'+a.tier);
+  confianza += a.delta; updateMeter();
+  history[current] = {dept:room.dept, bias:room.correct, actionTier:a.tier, actionLabel:a.label};
+  const cons = document.getElementById('consequence');
+  cons.style.display='block';
+  cons.innerHTML = `
+    <div class="badge ${a.tier}">${tierLabel(a.tier)}</div>
+    <div class="delta">Confianza organizacional: ${a.delta>0?'+':''}${a.delta}</div>
+    <p>${a.consequence}</p>
+    <button class="btn" id="contBtn">${current===ROOMS.length-1 ? 'Ver informe final →' : 'Continuar al siguiente departamento →'}</button>
+  `;
+  document.getElementById('contBtn').onclick = ()=>{
+    if(current===ROOMS.length-1){ showFinal(); }
+    else { current++; phase='intro'; renderIntro(); }
+  };
+  renderDial();
+}
+
+function showFinal(){
+  clearInterval(timerHandle);
+  const elapsed = Math.floor((Date.now()-startTime)/1000);
+  let rank, rankDesc;
+  if(confianza>=85){ rank='Auditor(a) Ejemplar'; rankDesc='Nortia Labs adopta tus recomendaciones como nuevo protocolo de auditoría interna en todos los departamentos.'; }
+  else if(confianza>=55){ rank='Auditor(a) Competente'; rankDesc='Tu trabajo fue sólido en general, aunque el consejo directivo señala áreas de mejora en su informe final.'; }
+  else { rank='Auditoría en Riesgo'; rankDesc='La organización decide contratar una auditoría externa adicional para revisar tus conclusiones.'; }
+
+  document.getElementById('stage').innerHTML = `
+    <div class="card final">
+      <div class="tag-row"><div class="expediente">Bóveda cerrada</div><div class="confidencial">Informe final</div></div>
+      <h2>Auditoría completada</h2>
+      <div class="rank">${rank}</div>
+      <p style="color:var(--text-muted);font-family:var(--font-mono);font-size:13px;">Tiempo total: ${fmtTime(elapsed)} · Confianza final: ${confianza}%</p>
+      <p>${rankDesc}</p>
+      <p>Resumen de tu auditoría por departamento:</p>
+      <div class="recap">
+        ${history.map(h=>`
+          <div class="recap-item ${h.actionTier}">
+            <b>${h.dept} — ${BIASES[h.bias].name}</b>
+            <span>${BIASES[h.bias].def}</span>
+            <span>Acción tomada (${tierLabel(h.actionTier)}): ${h.actionLabel}</span>
+          </div>
+        `).join('')}
+      </div>
+      <button class="btn" id="restartBtn" style="margin-top:20px;">Reiniciar auditoría</button>
+    </div>
+  `;
+  document.getElementById('dial').innerHTML='';
+  document.getElementById('restartBtn').onclick = ()=>{
+    current=0; confianza=60; history=[]; wrongAttempts=0; startTime=Date.now();
+    updateMeter(); startTimer(); phase='intro'; renderIntro();
+  };
+}
+
+updateMeter();
+startTimer();
+renderIntro();
+</script>
+</body>
+</html>
